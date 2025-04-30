@@ -40,21 +40,22 @@ The configuration process includes steps on both the Azure AD side and the Colli
    
    b. Select **SAML** as the single sign-on method
    
-   c. Configure the Basic SAML settings:
-      - **Identifier (Entity ID)**: `https://<INSTANCE_NAME>.collibra.com/`
-      - **Reply URL**: `https://<INSTANCE_NAME>.collibra.com/`
-      - **Sign on URL**: `https://<INSTANCE_NAME>.collibra.com/` (for SP-initiated mode)
+   c. Configure the Basic SAML settings as follows:
+      - **Identifier (Entity ID)**: A unique identifier for your Collibra DQ instance (e.g., `CollibraDQ` or `DevCollibraDQ`)
+      - **Reply URL (Assertion Consumer Service URL)**: The URL where Azure AD will send the SAML response, which should follow this pattern: `https://<YOUR-COLLIBRA-DQ-DOMAIN>/saml/SSO`
+      - **Sign on URL**: Leave this field empty/blank (marked as Optional)
+      - **Relay State**: Optional, can be left empty
+      - **Logout Url**: Optional, can be left empty
    
-   d. Configure User Attributes & Claims exactly as follows:
+   d. Configure User Attributes & Claims as follows:
 
-      **Required claim:**
-      - **Unique User Identifier (Name ID)**: user.userprincipalname
+      **Unique User Identifier**: user.userprincipalname
 
-      **Additional claims:**
-      - **http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress**: user.mail
-      - **http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname**: user.givenname
-      - **http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name**: user.userprincipalname
-      - **http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname**: user.surname
+      **Additional attributes:**
+      - **givenname**: user.givenname
+      - **surname**: user.surname
+      - **emailaddress**: user.mail
+      - **name**: user.userprincipalname
       - **memberOf**: user.groups
    
    e. In the **SAML Signing Certificate** section, copy the **App Federation Metadata Url** for later use in Collibra DQ configuration
@@ -210,25 +211,34 @@ export SAML_LB_INCLUDE_PORT_IN_REQUEST=false
    - Click on **Test this application**
    - You should be automatically signed in to Collibra DQ
 
-## Exact Azure AD Claims Configuration
+## Real-World Configuration Example
 
-The screenshot below shows exactly how the Attributes & Claims section should be configured in Azure AD:
+Below is a screenshot representation of how a properly configured Azure SSO setup for Collibra DQ should look:
 
+### Basic SAML Configuration
 ```
-Attributes & Claims
-
-Required claim
-Claim name                          Type    Value
-Unique User Identifier (Name ID)    SAML    user.userprincipalname
-
-Additional claims
-Claim name                                                   Type    Value
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress    SAML    user.mail
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname       SAML    user.givenname
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name            SAML    user.userprincipalname
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname         SAML    user.surname
-memberOf                                                               SAML    user.groups
+Identifier (Entity ID)                    DevCollibraDQ (example)
+Reply URL (Assertion Consumer Service URL) https://example-collibra-dq.domain.com/saml/SSO
+Sign on URL                               Optional (left blank)
+Relay State (Optional)                    Optional (left blank)
+Logout Url (Optional)                     Optional (left blank)
 ```
+
+### Attributes & Claims
+```
+givenname           user.givenname
+surname             user.surname
+emailaddress        user.mail
+name                user.userprincipalname
+memberOf            user.groups
+Unique User Identifier  user.userprincipalname
+```
+
+### SAML Certificates
+
+Make sure to copy the App Federation Metadata Url from this section for configuring Collibra DQ.
+
+> **Note:** The Sign on URL is intentionally left blank per Collibra's recommendation.
 
 ## Troubleshooting
 
