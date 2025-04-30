@@ -146,26 +146,42 @@ The configuration process includes steps on both the Azure AD side and the Colli
    
    b. This metadata may be needed if you encounter issues with the configuration
 
-## Advanced Configuration
+## Important: Azure AD Groups Configuration
 
-### Handling Azure AD Group Links
+According to the [official Collibra documentation](https://productresources.collibra.com/docs/collibra/latest/Content/DataQuality/DQSecurity/ta_saml-sso-azure-config.htm), when using Azure AD as the SSO provider, there is a critical behavior to be aware of:
 
-When Azure AD SSO sends more than five groups for a user, it sends a groups.link assertion instead of the actual groups. To handle this:
+> When groups are pulled from Azure Active Directory SSO and more than five groups are assigned to a user, the group claims return as a link, rather than the groups list:
+>
+> `<Attribute Name="http://schemas.microsoft.com/claims/groups.link">`
 
-1. Add the following properties to your `owl-env.sh` file:
-   
+This means if your users belong to more than five Azure AD groups, Azure will not send the complete list of groups in the SAML response. Instead, it will send a link that Collibra DQ must use to fetch the complete list of groups. **This requires additional configuration** as detailed below.
+
+### Required Configuration for Multiple Groups
+
+1. Add the following property to your owl-env.sh file:
    ```bash
-   # Azure AD Group Link Configuration
    export SAML_GROUPS_LINK_PROP="http://schemas.microsoft.com/claims/groups.link"
+   ```
+
+2. Create an application secret in Azure AD and configure these properties:
+   ```bash
    export AZURE_CLIENT_ID="<your-azure-client-id>"
    export AZURE_CLIENT_SECRET="<your-azure-client-secret>"
    ```
 
-2. Obtain a client key from Azure by following [Microsoft's documentation on creating an application secret](https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#option-2-create-a-new-application-secret)
+3. Ensure the application has the Microsoft Graph API permission `directory.read.all` (as an application permission, not delegated)
 
-3. Ensure the application has the MS Graph API application permission `directory.read.all`
+4. **Important:** In the Azure AD SSO setup, verify that the Sign-on URL field is not populated
 
-4. Verify that the Sign-on URL is not populated in the IdP setup in Azure
+### For Applications with Limited Groups
+
+If you've configured your application to return only groups that are specifically assigned to the SSO application, you may not encounter this issue. In that case, the standard configuration is sufficient.
+
+## Advanced Configuration
+
+### Handling Azure AD Group Links
+
+Since this information is now covered in the **Important: Azure AD Groups Configuration** section above, you can refer to that section for details on handling the groups.link assertion when users belong to more than five Azure AD groups.
 
 ### Load Balancer Configuration
 
