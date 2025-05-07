@@ -15,18 +15,28 @@
   - [Agent Configuration](#agent-configuration)
   - [Connection Setup](#connection-setup)
   - [Test Job Execution](#test-job-execution)
+  - [Important Configuration Files](#important-configuration-files)
+  - [Database Driver Management](#database-driver-management)
+  - [Log Monitoring and Troubleshooting](#log-monitoring-and-troubleshooting)
 - [Troubleshooting](#troubleshooting)
   - [Permission Issues with PostgreSQL](#permission-issues-with-postgresql)
   - [Admin Login Issues](#admin-login-issues)
+  - [Process Management Issues](#process-management-issues)
   - [Web Interface Access Issues](#web-interface-access-issues)
   - [License Configuration Issues](#license-configuration-issues)
+  - [Creating a Complete System Backup](#creating-a-complete-system-backup)
+- [Upgrading](#upgrading)
+  - [Upgrading to Java 17 and Spark 3.5.3](#upgrading-to-java-17-and-spark-353)
+- [Spark Configuration and Troubleshooting](#spark-configuration-and-troubleshooting)
+  - [Common Spark Issues](#common-spark-issues)
+  - [Spark Service Management](#spark-service-management)
+  - [Fixing Spark in Collibra DQ](#fixing-spark-in-collibra-dq)
 - [Working with the Local PostgreSQL Database](#working-with-the-local-postgresql-database)
   - [Connecting to PostgreSQL](#connecting-to-postgresql)
   - [Basic PostgreSQL Commands](#basic-postgresql-commands)
   - [Common Administrative Tasks](#common-administrative-tasks)
   - [Exiting PostgreSQL](#exiting-postgresql)
   - [Important Notes](#important-notes)
-- [Upgrading](#upgrading)
 - [Additional Resources](#additional-resources)
 
 ## Overview
@@ -220,6 +230,117 @@ To verify that everything is working properly:
 14. Navigate to the Jobs page (click the clock icon)
 15. Refresh the page to see the job progress until it reaches "Finished" status
 
+### Important Configuration Files
+
+Collibra DQ has several important configuration files that you may need to modify for optimal performance:
+
+1. **owl-env.sh** (`$OWL_BASE/owl/config/owl-env.sh`)
+   - Contains environment variables used by Collibra DQ
+   - Key settings include:
+     - Java options and memory allocation
+     - Logging configuration
+     - EXTRA_JVM_OPTIONS for Java compatibility
+     - Temporary directory locations
+
+2. **owl.properties** (`$OWL_BASE/owl/config/owl.properties`)
+   - Primary configuration for the DQ Web application
+   - Contains:
+     - Database connection settings for the metastore
+     - Web server configuration
+     - Authentication settings
+     - File upload limits
+
+3. **agent.properties** (`$OWL_BASE/owl/config/agent.properties`)
+   - Configuration for the DQ Agent
+   - Includes:
+     - Job processing parameters
+     - Spark connection settings
+     - Resource allocation defaults
+     - Agent identification
+
+4. **log4j2.properties** (`$OWL_BASE/owl/config/log4j2.properties`)
+   - Controls logging behavior
+   - Configure log levels, rotation policy, and format
+
+When making changes to these files, always:
+1. Stop the affected services first
+2. Make a backup of the original file
+3. Restart the services after changes
+4. Check logs for any errors or warnings
+
+### Database Driver Management
+
+Collibra DQ requires specific JDBC drivers to connect to different database systems. These drivers are stored in the `$OWL_BASE/owl/drivers` directory, organized by database type.
+
+To add or update database drivers:
+
+1. Create a directory structure for your database type if it doesn't exist:
+   ```bash
+   mkdir -p $OWL_BASE/owl/drivers/<database_type>
+   # Example: mkdir -p $OWL_BASE/owl/drivers/postgres
+   ```
+
+2. Copy the JDBC driver JAR files to the appropriate directory:
+   ```bash
+   cp /path/to/driver.jar $OWL_BASE/owl/drivers/<database_type>/
+   ```
+
+3. Restart the DQ Agent to load the new drivers:
+   ```bash
+   $OWL_BASE/owl/bin/owlmanage.sh restart=owlagent
+   ```
+
+Common database driver paths:
+- PostgreSQL: `$OWL_BASE/owl/drivers/postgres/`
+- Oracle: `$OWL_BASE/owl/drivers/oracle/`
+- SQL Server: `$OWL_BASE/owl/drivers/mssql/`
+- MySQL: `$OWL_BASE/owl/drivers/mysql/`
+
+If you have a drivers.tar.gz file from Collibra, you can extract it directly:
+```bash
+tar -xvf drivers.tar.gz -C $OWL_BASE/owl/drivers/
+```
+
+### Log Monitoring and Troubleshooting
+
+Monitoring logs is essential for diagnosing issues with Collibra DQ. The main log files are located in `$OWL_BASE/owl/log/`.
+
+Key log files:
+- `owl-web.log` - DQ Web application logs
+- `owl-agent.log` - DQ Agent logs
+- `postgresql-*.log` - PostgreSQL database logs (if installed locally)
+
+Useful log monitoring commands:
+
+```bash
+# View the last 1000 lines of the web application log
+tail -1000 $OWL_BASE/owl/log/owl-web.log
+
+# Follow the agent log in real-time
+tail -f $OWL_BASE/owl/log/owl-agent.log
+
+# Search for errors in the agent log
+tail -1000 $OWL_BASE/owl/log/owl-agent.log | grep -i error
+
+# Monitor startup progress
+tail -f $OWL_BASE/owl/log/owl-web.log
+
+# View PostgreSQL logs (if installed locally)
+tail -1000 $OWL_BASE/owl/postgres/data/log/postgresql-*.log
+```
+
+When diagnosing issues, look for:
+- ERROR level messages that indicate serious problems
+- WARN level messages that might point to configuration issues
+- Exception stack traces that provide detailed error information
+- Specific error codes or messages related to your database
+
+Common issues and their log patterns:
+- **Connection failures**: Look for "Connection refused" or "Cannot establish connection"
+- **Authentication issues**: Search for "Authentication failed" or "Invalid credentials"
+- **Resource limitations**: Watch for "Out of memory" or "Resource allocation failed"
+- **Database errors**: Check for SQL exceptions or database-specific error codes
+
 ## Troubleshooting
 
 ### Permission Issues with PostgreSQL
@@ -284,6 +405,43 @@ This issue is often caused by a password validation error during admin user crea
 
 After these steps, you should be able to log in with username `admin` and password `admin123`. Make sure to change this default password immediately after login.
 
+### Process Management Issues
+
+Sometimes DQ services may not stop properly using the standard commands. If you encounter this:
+
+1. First, try the standard stop commands:
+   ```bash
+   $OWL_BASE/owl/bin/owlmanage.sh stop=owlweb
+   $OWL_BASE/owl/bin/owlmanage.sh stop=owlagent
+   ```
+
+2. Check for running processes:
+   ```bash
+   ps -ef | grep owl
+   ```
+
+3. If processes are still running, you may need to force-stop them:
+   ```bash
+   # Replace PID with the actual process ID from the ps command
+   kill -9 PID
+   
+   # Example:
+   # kill -9 4632
+   ```
+
+4. For Spark services, use these commands:
+   ```bash
+   cd $OWL_BASE/owl/spark/sbin
+   ./stop-worker.sh
+   ./stop-master.sh
+   ```
+
+5. Check for any remaining processes after stopping:
+   ```bash
+   ps -ef | grep owl
+   ps -ef | grep spark
+   ```
+
 ### Web Interface Access Issues
 
 If you cannot access the web interface after installation:
@@ -300,6 +458,274 @@ If you encounter issues enabling the license option in the web interface:
 3. Set the `UX_REACT_ON` parameter to `TRUE`
 4. Manage your license through the License option
 5. After updating the license, set `UX_REACT_ON` back to `FALSE` to ensure proper functionality
+
+### Creating a Complete System Backup
+
+Before making significant changes to your Collibra DQ installation, create a full backup:
+
+```bash
+# Navigate to the parent directory of your installation
+cd /path/to/parent/directory
+
+# Create a compressed backup archive
+tar -czf owldq_backup_$(date +%Y%m%d).tar.gz owldq/
+
+# Verify the backup was created
+ls -lh owldq_backup_*.tar.gz
+```
+
+This backup can be used to restore your installation if anything goes wrong during upgrades or configuration changes.
+
+To restore from a backup:
+
+```bash
+# Stop all services
+$OWL_BASE/owl/bin/owlmanage.sh stop
+
+# Navigate to the parent directory
+cd /path/to/parent/directory
+
+# Remove the problematic installation (be careful with this command!)
+rm -rf owldq
+
+# Extract the backup
+tar -xzf owldq_backup_YYYYMMDD.tar.gz
+
+# Restart services
+$OWL_BASE/owl/bin/owlmanage.sh start
+```
+
+## Upgrading
+
+To upgrade Collibra DQ to a newer version:
+
+1. Download the new package
+2. Stop the current DQ services:
+   ```bash
+   $OWL_BASE/owl/bin/owlmanage.sh stop=owlweb
+   $OWL_BASE/owl/bin/owlmanage.sh stop=owlagent
+   ```
+3. Back up the existing installation
+4. Extract the new package and follow the installation steps with the same parameters as your original installation
+5. Start the services:
+   ```bash
+   $OWL_BASE/owl/bin/owlmanage.sh start=owlweb
+   $OWL_BASE/owl/bin/owlmanage.sh start=owlagent
+   ```
+
+Note: For Collibra DQ version 2025.02 and newer, you must upgrade to Java 17 and Spark 3.5.3.
+
+### Upgrading to Java 17 and Spark 3.5.3
+
+Starting with Collibra DQ version 2025.02, Java 17 and Spark 3.5.3 are required. Here's a detailed guide for upgrading:
+
+1. Install Java 17:
+   ```bash
+   sudo dnf install java-17-openjdk-devel
+   ```
+
+2. Create a backup directory for your current JAR files:
+   ```bash
+   mkdir -p $OWL_BASE/owl/tempfiles
+   ```
+
+3. Move the old JAR files to the backup directory:
+   ```bash
+   # Replace the version numbers with your current version
+   mv $OWL_BASE/owl/bin/dq-agent-*-SPARK*.jar $OWL_BASE/owl/tempfiles/
+   mv $OWL_BASE/owl/bin/dq-core-*-SPARK*-jar-with-dependencies.jar $OWL_BASE/owl/tempfiles/
+   mv $OWL_BASE/owl/bin/dq-webapp-*-SPARK*.jar $OWL_BASE/owl/tempfiles/
+   ```
+
+4. Copy the new JAR files to the bin directory:
+   ```bash
+   # Replace VERSION with your new version (e.g., 2025.03)
+   mv dq-agent-VERSION-SPARK353-JDK17.jar $OWL_BASE/owl/bin/
+   mv dq-core-VERSION-SPARK353-JDK17-jar-with-dependencies.jar $OWL_BASE/owl/bin/
+   mv dq-webapp-VERSION-SPARK353-JDK17.jar $OWL_BASE/owl/bin/
+   ```
+
+5. Add required Java 17 JVM parameters to the environment:
+   ```bash
+   # Edit the owl-env.sh file
+   nano $OWL_BASE/owl/config/owl-env.sh
+   
+   # Add or update the following line in the file
+   export EXTRA_JVM_OPTIONS="--add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.net=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.util.calendar=ALL-UNNAMED"
+   ```
+
+6. Extract and update Spark:
+   ```bash
+   # Navigate to where your installation package is located
+   cd /path/to/installation/package
+   
+   # Extract the Spark package
+   tar -xvf spark-3.5.3-bin-hadoop3.tgz
+   
+   # Rename and move the directory
+   mv spark-3.5.3-bin-hadoop3 spark
+   
+   # Backup the old Spark directory if needed
+   mv $OWL_BASE/owl/spark $OWL_BASE/owl/spark_backup  # Optional
+   
+   # Move the new Spark to the installation directory
+   mv spark $OWL_BASE/owl/
+   ```
+
+7. If you have extra Spark JARs (spark-extras):
+   ```bash
+   # Copy any extra JARs to the Spark jars directory
+   cp spark-extras/* $OWL_BASE/owl/spark/jars/
+   ```
+
+8. Set optional Spark worker options for better cleanup:
+   ```bash
+   # Add to your environment or owl-env.sh
+   export SPARK_WORKER_OPTS="${SPARK_WORKER_OPTS} -Dspark.worker.cleanup.enabled=true -Dspark.worker.cleanup.interval=1800 -Dspark.worker.cleanup.appDataTtl=3600"
+   ```
+
+9. Start Collibra DQ services:
+   ```bash
+   # Start Collibra Web
+   $OWL_BASE/owl/bin/owlmanage.sh start=owlweb
+   
+   # Start Spark master and workers (if not managed by Collibra DQ)
+   cd $OWL_BASE/owl/spark/sbin
+   ./start-master.sh
+   ./start-worker.sh spark://$(hostname -f):7077
+   
+   # Start Collibra Agent
+   $OWL_BASE/owl/bin/owlmanage.sh start=owlagent
+   ```
+
+10. Verify the services are running properly:
+    ```bash
+    # Check logs for any errors
+    tail -1000 $OWL_BASE/owl/log/owl-web.log
+    tail -1000 $OWL_BASE/owl/log/owl-agent.log
+    ```
+
+11. If you encounter issues with Spark jobs not starting, verify:
+    - The Spark master is running (`http://<server-ip>:8080`)
+    - The worker is connected to the master
+    - The hostname in the Spark master URL is correctly resolved (use FQDN if needed)
+    
+    ```bash
+    # If necessary, restart the Spark worker with full hostname
+    cd $OWL_BASE/owl/spark/sbin
+    ./stop-worker.sh
+    ./start-worker.sh spark://$(hostname -f):7077
+    ```
+
+These steps should help you successfully upgrade to Java 17 and Spark 3.5.3 for newer versions of Collibra DQ.
+
+## Spark Configuration and Troubleshooting
+
+Proper Spark configuration is critical for Collibra DQ to function correctly, especially for data quality job execution. This section covers common Spark configuration issues and how to resolve them.
+
+### Common Spark Issues
+
+1. **Jobs Stuck in "Pending" or "Submitted" Status**
+   - This often indicates that Spark master and workers are not properly configured or running
+   - Check if Spark master is running: `http://<server-ip>:8080`
+   - Verify workers are connected to the master
+   - Ensure the Spark master URL in the agent configuration is correct
+
+2. **Hostname Resolution Problems**
+   - Spark requires proper hostname resolution to function correctly
+   - Use fully qualified domain names (FQDN) for Spark master URLs
+   - Get your FQDN with: `hostname -f`
+   - Update worker configuration with the correct master URL:
+     ```bash
+     ./start-worker.sh spark://<your-fqdn>:7077
+     ```
+
+3. **Insufficient Resources**
+   - Spark jobs require adequate memory and CPU resources
+   - Adjust executor memory and cores in the agent configuration
+   - Increase executor memory if you see "Out of Memory" errors
+
+### Spark Service Management
+
+When Collibra DQ jobs aren't running properly, you may need to manually manage Spark services:
+
+1. **Start Spark Master:**
+   ```bash
+   cd $OWL_BASE/owl/spark/sbin
+   ./start-master.sh
+   ```
+
+2. **Start Spark Worker:**
+   ```bash
+   cd $OWL_BASE/owl/spark/sbin
+   ./start-worker.sh spark://$(hostname -f):7077
+   ```
+
+3. **Stop Spark Services:**
+   ```bash
+   cd $OWL_BASE/owl/spark/sbin
+   ./stop-worker.sh
+   ./stop-master.sh
+   ```
+
+4. **Verify Spark Is Running:**
+   - Check the Spark UI at `http://<server-ip>:8080`
+   - Ensure at least one worker is connected
+   - Verify available resources match your requirements
+
+### Fixing Spark in Collibra DQ
+
+If you need to reinstall or fix Spark configuration:
+
+1. **Stop All Services:**
+   ```bash
+   $OWL_BASE/owl/bin/owlmanage.sh stop=owlweb
+   $OWL_BASE/owl/bin/owlmanage.sh stop=owlagent
+   cd $OWL_BASE/owl/spark/sbin
+   ./stop-worker.sh
+   ./stop-master.sh
+   ```
+
+2. **Replace Spark Installation:**
+   ```bash
+   # Backup current Spark if needed
+   mv $OWL_BASE/owl/spark $OWL_BASE/owl/spark_backup
+   
+   # Extract new Spark package
+   tar -xvf spark-3.5.3-bin-hadoop3.tgz
+   mv spark-3.5.3-bin-hadoop3 spark
+   mv spark $OWL_BASE/owl/
+   ```
+
+3. **Add Extra JARs if Needed:**
+   ```bash
+   # Copy any required extra JARs
+   cp spark-extras/* $OWL_BASE/owl/spark/jars/
+   ```
+
+4. **Set Correct Permissions:**
+   ```bash
+   chmod -R 755 $OWL_BASE/owl/spark/bin
+   chmod -R 755 $OWL_BASE/owl/spark/sbin
+   ```
+
+5. **Restart Services:**
+   ```bash
+   $OWL_BASE/owl/bin/owlmanage.sh start=owlweb
+   
+   cd $OWL_BASE/owl/spark/sbin
+   ./start-master.sh
+   ./start-worker.sh spark://$(hostname -f):7077
+   
+   $OWL_BASE/owl/bin/owlmanage.sh start=owlagent
+   ```
+
+6. **Monitor Logs for Success:**
+   ```bash
+   tail -f $OWL_BASE/owl/log/owl-agent.log
+   ```
+
+By following these steps, you should be able to resolve most Spark-related issues in your Collibra DQ installation.
 
 ## Working with the Local PostgreSQL Database
 
@@ -459,26 +885,6 @@ To exit the PostgreSQL interactive terminal:
 2. Always back up the database before making significant changes.
 3. For production environments, consider documenting any manual changes made to the database.
 4. The default database name used by Collibra DQ is `postgres`.
-
-## Upgrading
-
-To upgrade Collibra DQ to a newer version:
-
-1. Download the new package
-2. Stop the current DQ services:
-   ```bash
-   $OWL_BASE/owl/bin/owlmanage.sh stop=owlweb
-   $OWL_BASE/owl/bin/owlmanage.sh stop=owlagent
-   ```
-3. Back up the existing installation
-4. Extract the new package and follow the installation steps with the same parameters as your original installation
-5. Start the services:
-   ```bash
-   $OWL_BASE/owl/bin/owlmanage.sh start=owlweb
-   $OWL_BASE/owl/bin/owlmanage.sh start=owlagent
-   ```
-
-Note: For Collibra DQ version 2025.02 and newer, you must upgrade to Java 17 and Spark 3.5.3.
 
 ## Additional Resources
 
